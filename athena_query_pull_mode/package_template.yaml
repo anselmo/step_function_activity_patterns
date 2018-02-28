@@ -1,0 +1,121 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AnomalyDetectioModelTrainingPipeline
+Outputs:
+  AthenaQueryExecution:
+    Value:
+      Ref: AthenaQueryExecution
+Parameters:
+  ActivityScriptsPathParam:
+    Default: s3://ards-step-functions-scripts
+    Type: String
+  EMRBootstrapActivityScriptParam:
+    Default: s3://ards-step-functions-scripts/activity_bootstrap.sh
+    Type: String
+Resources:
+  AthenaQueryExecution:
+    Properties:
+      DefinitionString:
+        Fn::Sub: "{\n  \"Comment\": \"Poll task pattern\",\n  \"StartAt\": \"start_query\"\
+          ,\n  \"States\": {\n    \"start_query\": {\n      \"Type\": \"Task\",\n\
+          \      \"Resource\": \"${AthenaRunnerStartQuery.Arn}\",\n      \"Next\"\
+          : \"wait_next\"\n    },\n    \"wait_next\": {\n      \"Type\": \"Wait\"\
+          ,\n      \"SecondsPath\": \"$.waitTime\",\n      \"Next\": \"poll_status\"\
+          \n    },\n    \"poll_status\": {\n      \"Type\": \"Task\",\n      \"Resource\"\
+          : \"${AthenaRunnerPollStatus.Arn}\",\n      \"Next\": \"check_complete\"\
+          \n    },\n    \"check_complete\": {\n      \"Type\": \"Choice\",\n     \
+          \ \"Default\": \"wait_next\",\n      \"Choices\": [\n        {\n       \
+          \   \"Variable\": \"$.status\",\n          \"StringEquals\": \"FAILED\"\
+          ,\n          \"Next\": \"query_failed\"\n        },\n        {\n       \
+          \   \"Variable\": \"$.status\",\n          \"StringEquals\": \"SUCCEEDED\"\
+          ,\n          \"Next\": \"get_results\"\n        }\n      ]\n    },\n   \
+          \ \"query_failed\": {\n      \"Type\": \"Fail\",\n      \"Cause\": \"Athena\
+          \ execution failed\",\n      \"Error\": \"Athena execution failed\"\n  \
+          \  },\n    \"get_results\": {\n      \"Type\": \"Task\",\n      \"Resource\"\
+          : \"${AthenaRunnerGetResults.Arn}\",\n      \"End\": true\n    }\n  }\n\
+          }\n"
+      RoleArn:
+        Fn::GetAtt:
+        - AthenaQueryExecutionStepFn
+        - Arn
+    Type: AWS::StepFunctions::StateMachine
+  AthenaQueryExecutionStepFn:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+              Fn::Sub: states.${AWS::Region}.amazonaws.com
+        Version: '2012-10-17'
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - lambda:*
+            - iam:*
+            Effect: Allow
+            Resource: '*'
+        PolicyName: lambda
+    Type: AWS::IAM::Role
+  AthenaRunnerGetResults:
+    Properties:
+      CodeUri: s3://ards-lambda-repo/96095b7b13fb765f88cb56f0741596e4
+      Handler: athena.getResults
+      Role:
+        Fn::GetAtt:
+        - LambdaAthenaQueryExecutionRole
+        - Arn
+      Runtime: nodejs6.10
+    Type: AWS::Serverless::Function
+  AthenaRunnerPollStatus:
+    Properties:
+      CodeUri: s3://ards-lambda-repo/96095b7b13fb765f88cb56f0741596e4
+      Handler: athena.pollStatus
+      Role:
+        Fn::GetAtt:
+        - LambdaAthenaQueryExecutionRole
+        - Arn
+      Runtime: nodejs6.10
+    Type: AWS::Serverless::Function
+  AthenaRunnerStartQuery:
+    Properties:
+      CodeUri: s3://ards-lambda-repo/96095b7b13fb765f88cb56f0741596e4
+      Handler: athena.startQuery
+      Role:
+        Fn::GetAtt:
+        - LambdaAthenaQueryExecutionRole
+        - Arn
+      Runtime: nodejs6.10
+    Type: AWS::Serverless::Function
+  LambdaAthenaQueryExecutionRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - cloudwatch:*
+            - s3:*
+            - lambda:*
+            - iam:*
+            - cloudformation:*
+            - ec2:*
+            - sdb:*
+            - support:*
+            - athena:*
+            - glue:*
+            Effect: Allow
+            Resource: '*'
+          Version: '2012-10-17'
+        PolicyName: LambdaAthenaQueryExecutionPolicy
+    Type: AWS::IAM::Role
+Transform:
+- AWS::Serverless-2016-10-31
