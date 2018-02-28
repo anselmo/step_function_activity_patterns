@@ -1,0 +1,143 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AnomalyDetectioModelTrainingPipeline'
+Transform:
+- 'AWS::Serverless-2016-10-31'
+Parameters:
+  EMRBootstrapActivityScriptParam:
+    Default: s3://ards-step-functions-scripts/activity_bootstrap.sh
+    Type: String
+  ActivityScriptsPathParam:
+    Default: s3://ards-step-functions-scripts
+    Type: String
+Outputs:
+  AthenaQueryExecution:
+    Value:
+      Ref: AthenaQueryExecution
+Resources:
+  AthenaQueryExecution :
+    Type: 'AWS::StepFunctions::StateMachine'
+    Properties:
+      DefinitionString: !Sub |
+        {
+          "Comment": "Poll task pattern",
+          "StartAt": "start_query",
+          "States": {
+            "start_query": {
+              "Type": "Task",
+              "Resource": "${AthenaRunnerStartQuery.Arn}",
+              "Next": "wait_next"
+            },
+            "wait_next": {
+              "Type": "Wait",
+              "SecondsPath": "$.waitTime",
+              "Next": "poll_status"
+            },
+            "poll_status": {
+              "Type": "Task",
+              "Resource": "${AthenaRunnerPollStatus.Arn}",
+              "Next": "check_complete"
+            },
+            "check_complete": {
+              "Type": "Choice",
+              "Default": "wait_next",
+              "Choices": [
+                {
+                  "Variable": "$.status",
+                  "StringEquals": "FAILED",
+                  "Next": "query_failed"
+                },
+                {
+                  "Variable": "$.status",
+                  "StringEquals": "SUCCEEDED",
+                  "Next": "get_results"
+                }
+              ]
+            },
+            "query_failed": {
+              "Type": "Fail",
+              "Cause": "Athena execution failed",
+              "Error": "Athena execution failed"
+            },
+            "get_results": {
+              "Type": "Task",
+              "Resource": "${AthenaRunnerGetResults.Arn}",
+              "End": true
+            }
+          }
+        }
+      RoleArn: !GetAtt AthenaQueryExecutionStepFn.Arn
+  #functions
+  AthenaRunnerStartQuery:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: athena.startQuery
+      Runtime: nodejs4.3
+      CodeUri: fns
+      Role: !GetAtt LambdaAthenaQueryExecutionRole.Arn
+      Runtime: nodejs6.10
+  AthenaRunnerPollStatus:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: athena.pollStatus
+      Runtime: nodejs4.3
+      CodeUri: fns
+      Role: !GetAtt LambdaAthenaQueryExecutionRole.Arn
+      Runtime: nodejs6.10
+  AthenaRunnerGetResults:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: athena.getResults
+      Runtime: nodejs6.10
+      CodeUri: fns
+      Role: !GetAtt LambdaAthenaQueryExecutionRole.Arn
+      Runtime: nodejs6.10
+  # IAM roles
+  AthenaQueryExecutionStepFn:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: !Sub 'states.${AWS::Region}.amazonaws.com'
+          Action: 'sts:AssumeRole'
+      Policies:
+      - PolicyName: lambda
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - 'lambda:*'
+            - 'iam:*'
+            Resource: "*"
+  LambdaAthenaQueryExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+          Action: "sts:AssumeRole"
+      Path: "/"
+      Policies:
+      - PolicyName: "LambdaAthenaQueryExecutionPolicy"
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Resource: "*"
+              Action:
+              - "cloudwatch:*"
+              - "s3:*"
+              - "lambda:*"
+              - "iam:*"
+              - "cloudformation:*"
+              - "ec2:*"
+              - "sdb:*"
+              - "support:*"
+              - "athena:*"
+              - "glue:*"

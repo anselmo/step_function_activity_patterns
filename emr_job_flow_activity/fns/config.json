@@ -1,0 +1,33 @@
+{
+  "ReleaseLabel": "emr-5.11.0",
+  "Name": "activity-step-task",
+  "EbsRootVolumeSize": 10,
+  "JobFlowRole": "EMR_EC2_DefaultRole",
+  "ServiceRole": "EMR_DefaultRole",
+  "VisibleToAllUsers": true,
+  "Tags": [{
+    "Key": "type",
+    "Value": "activity_setup"
+  }],
+  "Applications": [{
+      "Name": "Hadoop"
+    },
+    {
+      "Name": "Hive"
+    },
+    {
+      "Name": "Spark"
+    }
+  ],
+  "Instances": {
+    "InstanceGroups": [{
+        "InstanceCount": 1,
+        "InstanceRole": "MASTER",
+        "InstanceType": "m3.xlarge",
+        "Name": "MasterA"
+      }
+    ],
+    "TerminationProtected": false,
+    "KeepJobFlowAliveWhenNoSteps": false
+  }
+}

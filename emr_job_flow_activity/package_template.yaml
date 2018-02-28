@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AnomalyDetectioModelTrainingPipeline
+Outputs:
+  AnomalyDetectioModelTrainingPipeline:
+    Value:
+      Ref: AnomalyDetectioModelTrainingPipeline
+Parameters:
+  ActivityScriptsPathParam:
+    Default: s3://ards-step-functions-scripts
+    Type: String
+  EMRBootstrapActivityScriptParam:
+    Default: s3://ards-step-functions-scripts/activity_bootstrap.sh
+    Type: String
+Resources:
+  AnomalyDetectioModelTrainingPipeline:
+    DependsOn: StepActivityEMR
+    Properties:
+      DefinitionString:
+        Fn::Sub: "{\n  \"Comment\": \"A state machine that submits ...\",\n  \"StartAt\"\
+          : \"Setup\",\n  \"Version\": \"1.0\",\n  \"States\": {\n    \"Setup\": {\n\
+          \      \"Type\": \"Task\",\n      \"Resource\": \"${FunctionSetupActivity.Arn}\"\
+          ,\n      \"Next\": \"EmrActivity\"\n    },\n    \"EmrActivity\": {\n   \
+          \   \"Type\": \"Task\",\n      \"Resource\": \"${StepActivityEMR}\",\n \
+          \     \"Next\": \"NoOp\",\n      \"TimeoutSeconds\": 1800,\n      \"HeartbeatSeconds\"\
+          : 1600\n    },\n    \"NoOp\": {\n      \"Type\": \"Pass\",\n      \"Result\"\
+          : \"Hello Done\",\n      \"End\": true\n    }\n  }\n}\n"
+      RoleArn:
+        Fn::GetAtt:
+        - RoleStepFn
+        - Arn
+    Type: AWS::StepFunctions::StateMachine
+  EMRManageRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - cloudwatch:*
+            - s3:*
+            - elasticmapreduce:*
+            - lambda:*
+            - iam:*
+            - cloudformation:*
+            - ec2:*
+            - sdb:*
+            - support:*
+            Effect: Allow
+            Resource: '*'
+          Version: '2012-10-17'
+        PolicyName: LambdaEMRSetup
+    Type: AWS::IAM::Role
+  FunctionSetupActivity:
+    DependsOn:
+    - StepActivityEMR
+    - EMRManageRole
+    Properties:
+      CodeUri: s3://ards-lambda-repo/d50b15a7fdbb7ae5b652932a348ede42
+      Environment:
+        Variables:
+          ACTIVITY_ID:
+            Ref: StepActivityEMR
+          EMR_BOOTSTRAP_SCRIPT:
+            Ref: EMRBootstrapActivityScriptParam
+          S3_BUCKET:
+            Ref: ActivityScriptsPathParam
+      Handler: emr_setup.handler
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - EMRManageRole
+        - Arn
+      Runtime: nodejs6.10
+      Timeout: 60
+    Type: AWS::Serverless::Function
+  RoleStepFn:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+              Fn::Sub: states.${AWS::Region}.amazonaws.com
+        Version: '2012-10-17'
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - lambda:*
+            - iam:*
+            Effect: Allow
+            Resource: '*'
+        PolicyName: lambda
+    Type: AWS::IAM::Role
+  StepActivityEMR:
+    Properties:
+      Name: StepActivityEMRModelTraining
+    Type: AWS::StepFunctions::Activity
+Transform:
+- AWS::Serverless-2016-10-31
