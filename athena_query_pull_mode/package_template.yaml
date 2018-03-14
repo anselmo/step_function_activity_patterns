@@ -1,16 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AnomalyDetectioModelTrainingPipeline
+Description: AthenaQueryPollModeActivity
 Outputs:
   AthenaQueryExecution:
     Value:
       Ref: AthenaQueryExecution
-Parameters:
-  ActivityScriptsPathParam:
-    Default: s3://ards-step-functions-scripts
-    Type: String
-  EMRBootstrapActivityScriptParam:
-    Default: s3://ards-step-functions-scripts/activity_bootstrap.sh
-    Type: String
 Resources:
   AthenaQueryExecution:
     Properties:
@@ -60,7 +53,7 @@ Resources:
     Type: AWS::IAM::Role
   AthenaRunnerGetResults:
     Properties:
-      CodeUri: s3://ards-lambda-repo/96095b7b13fb765f88cb56f0741596e4
+      CodeUri: s3://ards-lambda-repo/240e33058ee8ba85882d90f6e9a941d0
       Handler: athena.getResults
       Role:
         Fn::GetAtt:
@@ -70,7 +63,7 @@ Resources:
     Type: AWS::Serverless::Function
   AthenaRunnerPollStatus:
     Properties:
-      CodeUri: s3://ards-lambda-repo/96095b7b13fb765f88cb56f0741596e4
+      CodeUri: s3://ards-lambda-repo/240e33058ee8ba85882d90f6e9a941d0
       Handler: athena.pollStatus
       Role:
         Fn::GetAtt:
@@ -80,7 +73,7 @@ Resources:
     Type: AWS::Serverless::Function
   AthenaRunnerStartQuery:
     Properties:
-      CodeUri: s3://ards-lambda-repo/96095b7b13fb765f88cb56f0741596e4
+      CodeUri: s3://ards-lambda-repo/240e33058ee8ba85882d90f6e9a941d0
       Handler: athena.startQuery
       Role:
         Fn::GetAtt:
@@ -117,5 +110,46 @@ Resources:
           Version: '2012-10-17'
         PolicyName: LambdaAthenaQueryExecutionPolicy
     Type: AWS::IAM::Role
+  StepExecManageRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+        Version: '2012-10-17'
+      Path: /service-role/
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - states:*
+            Effect: Allow
+            Resource: '*'
+          Version: '2012-10-17'
+        PolicyName: AthenaQueryStepFunction
+    Type: AWS::IAM::Role
+  TLOGSync:
+    DependsOn:
+    - StepExecManageRole
+    - AthenaQueryExecution
+    Properties:
+      Description: ScheduledRule
+      ScheduleExpression: rate(1 minute)
+      State: ENABLED
+      Targets:
+      - Arn:
+          Ref: AthenaQueryExecution
+        Id: FOO123
+        Input:
+          Fn::Sub: "{\n  \"query\": \"SELECT * FROM \\\"sampledb\\\".\\\"elb_logs\\\
+            \" limit 10;\",\n  \"outputLocation\": \"s3://ards-us-west-athena-results\"\
+            \n}\n"
+        RoleArn:
+          Fn::GetAtt:
+          - StepExecManageRole
+          - Arn
+    Type: AWS::Events::Rule
 Transform:
 - AWS::Serverless-2016-10-31

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AnomalyDetectioModelTrainingPipeline
+Description: StepFunctionEMRAsyncActivity
 Outputs:
   AnomalyDetectioModelTrainingPipeline:
     Value:
@@ -62,7 +62,7 @@ Resources:
     - StepActivityEMR
     - EMRManageRole
     Properties:
-      CodeUri: s3://ards-lambda-repo/d50b15a7fdbb7ae5b652932a348ede42
+      CodeUri: s3://ards-lambda-repo/47414c1b1589e0a3691e12bf60ab83a0
       Environment:
         Variables:
           ACTIVITY_ID:

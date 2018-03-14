@@ -1,0 +1,2 @@
+aws cloudformation package --template-file template_scheduler.yaml --s3-bucket ards-lambda-repo --output-template-file package_template.yaml
+aws cloudformation deploy --template-file ./package_template.yaml --stack-name WTQ3 --capabilities CAPABILITY_IAM

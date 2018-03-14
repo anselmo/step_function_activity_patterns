@@ -11,12 +11,13 @@ Resources:
       ScheduleExpression: "rate(10 minutes)"
       State: "ENABLED"
       Targets:
-      - Arn: arn:aws:states:us-west-2:586705174353:stateMachine:Choicestate
+      - Arn: arn:aws:states:us-west-2:586705174353:stateMachine:AthenaQueryExecution-lSkOYjdfXRcv
         Id: ABC1233
         RoleArn: !GetAtt EventManageRole.Arn
         Input: !Sub |
           {
-            "command": "run-today"
+            "query": "SELECT * FROM \"sampledb\".\"elb_logs\" limit 10;",
+            "outputLocation": "s3://ards-us-west-athena-results"
           }
   EventManageRole:
     Type: "AWS::IAM::Role"
@@ -35,6 +36,6 @@ Resources:
           Version: "2012-10-17"
           Statement:
             - Effect: "Allow"
-              Resource: "arn:aws:states:us-west-2:586705174353:stateMachine:Choicestate"
+              Resource: arn:aws:states:us-west-2:586705174353:stateMachine:AthenaQueryExecution-lSkOYjdfXRcv
               Action:
               - "states:StartExecution"
