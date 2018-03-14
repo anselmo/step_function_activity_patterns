@@ -3,18 +3,46 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'AthenaQueryPollModeActivity'
 Transform:
 - 'AWS::Serverless-2016-10-31'
-Parameters:
-  EMRBootstrapActivityScriptParam:
-    Default: s3://ards-step-functions-scripts/activity_bootstrap.sh
-    Type: String
-  ActivityScriptsPathParam:
-    Default: s3://ards-step-functions-scripts
-    Type: String
 Outputs:
   AthenaQueryExecution:
     Value:
       Ref: AthenaQueryExecution
 Resources:
+  TLOGSync:
+    Type: "AWS::Events::Rule"
+    Properties:
+      Description: "ScheduledRule"
+      ScheduleExpression: "rate(1 minute)"
+      State: "ENABLED"
+      Targets:
+      - Arn: arn:aws:states:us-west-2:586705174353:stateMachine:Choicestate
+        Id: ABC1233
+        RoleArn: !GetAtt EventManageRole.Arn
+        Input: !Sub |
+          {
+            "query": "SELECT * FROM \"sampledb\".\"elb_logs\" limit 10;",
+            "outputLocation": "s3://ards-us-west-athena-results"
+          }
+  EventManageRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/service-role/"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+          Action: "sts:AssumeRole"
+      Policies:
+      - PolicyName: "LambdaEMRSetup"
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Resource: "arn:aws:states:us-west-2:586705174353:stateMachine:Choicestate"
+              Action:
+              - "states:StartExecution"
   AthenaQueryExecution :
     Type: 'AWS::StepFunctions::StateMachine'
     Properties:
