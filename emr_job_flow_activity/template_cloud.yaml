@@ -8,7 +8,7 @@ Resources:
     Type: "AWS::Events::Rule"
     Properties:
       Description: "ScheduledRule"
-      ScheduleExpression: "rate(10 minute)"
+      ScheduleExpression: "rate(1 minute)"
       State: "ENABLED"
       Targets:
       - Arn: arn:aws:states:us-west-2:586705174353:stateMachine:Choicestate
