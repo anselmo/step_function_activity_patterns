@@ -117,35 +117,36 @@ Resources:
         - Action: sts:AssumeRole
           Effect: Allow
           Principal:
-            Service: lambda.amazonaws.com
+            Service: events.amazonaws.com
         Version: '2012-10-17'
-      Path: /service-role/
+      Path: /
       Policies:
       - PolicyDocument:
           Statement:
           - Action:
-            - states:*
+            - states:StartExecution
             Effect: Allow
             Resource: '*'
           Version: '2012-10-17'
         PolicyName: AthenaQueryStepFunction
     Type: AWS::IAM::Role
   TLOGSync:
-    DependsOn:
-    - StepExecManageRole
-    - AthenaQueryExecution
     Properties:
       Description: ScheduledRule
       ScheduleExpression: rate(1 minute)
-      State: ENABLED
+      State: DISABLED
       Targets:
       - Arn:
           Ref: AthenaQueryExecution
-        Id: FOO123
+        Id:
+          Fn::Join:
+          - '-'
+          - - '123'
+            - rule
+            - target
         Input:
-          Fn::Sub: "{\n  \"query\": \"SELECT * FROM \\\"sampledb\\\".\\\"elb_logs\\\
-            \" limit 10;\",\n  \"outputLocation\": \"s3://ards-us-west-athena-results\"\
-            \n}\n"
+          Fn::Sub: "{\n  \"query\": \"SELECT * FROM sampledb.elb_logs limit 1;\",\n\
+            \  \"outputLocation\": \"s3://ards-us-west-athena-results\"\n}\n"
         RoleArn:
           Fn::GetAtt:
           - StepExecManageRole

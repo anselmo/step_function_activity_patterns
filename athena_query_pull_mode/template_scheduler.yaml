@@ -10,32 +10,29 @@ Outputs:
 Resources:
   TLOGSync:
     Type: "AWS::Events::Rule"
-    DependsOn:
-    - "StepExecManageRole"
-    - "AthenaQueryExecution"
     Properties:
       Description: "ScheduledRule"
       ScheduleExpression: "rate(1 minute)"
-      State: "ENABLED"
+      State: "DISABLED"
       Targets:
       - Arn: !Ref AthenaQueryExecution
-        Id: FOO123
+        Id: !Join [ "-", [ "123","rule","target" ] ]
         RoleArn: !GetAtt StepExecManageRole.Arn
         Input: !Sub |
           {
-            "query": "SELECT * FROM \"sampledb\".\"elb_logs\" limit 10;",
+            "query": "SELECT * FROM sampledb.elb_logs limit 1;",
             "outputLocation": "s3://ards-us-west-athena-results"
           }
   StepExecManageRole:
     Type: "AWS::IAM::Role"
     Properties:
-      Path: "/service-role/"
+      Path: "/"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
         - Effect: "Allow"
           Principal:
-            Service: "lambda.amazonaws.com"
+            Service: "events.amazonaws.com"
           Action: "sts:AssumeRole"
       Policies:
       - PolicyName: "AthenaQueryStepFunction"
@@ -45,7 +42,7 @@ Resources:
             - Effect: "Allow"
               Resource: "*"
               Action:
-              - "states:*"
+              - "states:StartExecution"
   AthenaQueryExecution:
     Type: 'AWS::StepFunctions::StateMachine'
     Properties:
